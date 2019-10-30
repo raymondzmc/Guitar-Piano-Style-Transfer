@@ -1,1 +1,1 @@
-# Guitar-Piano-Style-Transfer
+# CycleGAN for Guitar-Piano Tone Color Transfer
