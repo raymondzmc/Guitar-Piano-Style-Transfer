@@ -3,6 +3,7 @@ import torch.nn as nn
 import functools
 import pdb
 
+__all__ = ['ResnetGenerator', 'NLayerDiscriminator']
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
