@@ -1,6 +1,7 @@
 import torch
 import random
 from torch.nn import init
+import matplotlib.pyplot as plt
 
 
 def init_weights(net, init_type='normal', init_gain=0.02):
@@ -90,3 +91,17 @@ class ImagePool():
                     return_images.append(image)
         return_images = torch.cat(return_images, 0)   # collect all the images and return
         return return_images
+
+
+def save_heatmap(data, path):
+    """
+    Save spectrogram as heatmap
+    """
+    data = x_mel
+    cmap = plt.cm.jet
+    norm = plt.Normalize(vmin=data.min(), vmax=data.max())
+
+    # map the normalized data to colors
+    # image is now RGBA (512x512x4) 
+    image = cmap(norm(data))
+    plt.imsave(path, image)

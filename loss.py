@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.optim import lr_scheduler
 import itertools
 from model import * 
 from utils import *
@@ -73,13 +74,12 @@ class CycleGANModel(nn.Module):
     CycleGAN paper: https://arxiv.org/pdf/1703.10593.pdf
     """
 
-    def __init__(self):
-        """Initialize the CycleGAN class.
+    def __init__(self, verbose=False, last_epoch=0):
+        """Initialize the CycleGAN class."""
 
-        Parameters:
-            opt (Option class)-- stores all the experiment flags; needs to be a subclass of BaseOptions
-        """
         super(CycleGANModel, self).__init__()
+
+        self.verbose = verbose
 
         # Define generators F(y) = x, G(x) = y
         self.Fy = ResnetGenerator(cfg.input_nc, cfg.output_nc)
@@ -116,6 +116,17 @@ class CycleGANModel(nn.Module):
         self.lambda_cyc = cfg.lambda_cyc
         self.lambda_idt = cfg.lambda_idt
 
+        # LR scheduler
+        def lr_lambda(epoch):
+            lr_l = 1.0 - (max(0, epoch + last_epoch - 100) / float(101))
+            return lr_l
+
+        self.schedulers = []
+        for optim in self.optimizers:
+            self.schedulers.append(lr_scheduler.LambdaLR(optim, lr_lambda))
+
+        print("Initial learning rate: {:.6f}".format(self.optimizers[0].param_groups[0]['lr']))
+
     def set_requires_grad(self, nets, requires_grad=False):
         if not isinstance(nets, list):
             nets = [nets]
@@ -149,18 +160,23 @@ class CycleGANModel(nn.Module):
         idt_y = self.Gx(self.real_y)
         loss_idt_y = self.criterionIdt(idt_y, self.real_y) * self.lambda_cyc * self.lambda_idt
         
+        
         # GAN Loss: Dx(Fy(y)) and Dy(Gx(x))
         loss_Fy = self.criterionGAN(self.Dx(self.fake_x), True)
         loss_Gx = self.criterionGAN(self.Dy(self.fake_y), True)
+        
 
         # Cycle-Consistency Loss: ||Gx(Dy(y)) - y|| and ||Fy(Gx(x)) - x|| 
         loss_cyc_x = self.criterionCycle(self.rec_x, self.real_x) * self.lambda_cyc
         loss_cyc_y = self.criterionCycle(self.rec_y, self.real_y) * self.lambda_cyc
+        
 
         # Compute gradients and update weights for the generator
         self.loss_G = loss_idt_x + loss_idt_y + loss_Fy + loss_Gx + loss_cyc_x + loss_cyc_y
         self.loss_G.backward()
         self.optimizer_G.step()
+        
+        ######################################################################################################
 
         # Optimize for the Discriminators
         self.set_requires_grad([self.Dx, self.Dy], True)
@@ -171,15 +187,32 @@ class CycleGANModel(nn.Module):
         loss_Dx_real = self.criterionGAN(self.Dx(self.real_x), True)
         loss_Dx_fake = self.criterionGAN(self.Dx(fake_x.detach()), False)
         loss_Dx = (loss_Dx_real + loss_Dx_fake) * 0.5
-        loss_Dx.backward()
 
         # Loss for Dy
         fake_y = self.fake_y_pool.query(self.fake_y)
         loss_Dy_real = self.criterionGAN(self.Dx(self.real_y), True)
         loss_Dy_fake = self.criterionGAN(self.Dx(fake_y.detach()), False)
         loss_Dy = (loss_Dy_real + loss_Dy_fake) * 0.5
+
+        # Compute gradients and update weights for the discriminator
+        self.loss_D = loss_Dx + loss_Dy
+        self.loss_D.backward()
         self.optimizer_D.step()
 
+        if self.verbose:
+            print("Identity loss for x: {:.3f}, y: {:.3f}".format(loss_idt_x.item(), loss_idt_y.item()))
+            print("Generator loss for Fy: {:.3f}, Gx: {:.3f}".format(loss_Fy.item(), loss_Gx.item()))
+            print("Cycle-consistent loss for x: {:.3f}, y: {:.3f}".format(loss_cyc_x.item(), loss_cyc_y.item()))
+            print("Discriminator loss for x: {:.3f}, y: {:.3f}".format(loss_Dx.item(), loss_Dy.item()))
+
+
+    def update_learning_rate(self):
+        """Update learning rates for all the networks; called at the end of every epoch"""
+        for scheduler in self.schedulers:
+            scheduler.step()
+
+        lr = self.optimizers[0].param_groups[0]['lr']
+        print('learning rate = {:.6f}'.format(lr))
 
 # if __name__ == "__main__":
 #     cyclegan = CycleGANModel().cuda()
