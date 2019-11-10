@@ -1,4 +1,4 @@
-# CycleGAN for Guitar-Piano Tone Color Transfer
+# CycleGAN for Guitar-Piano Music Style Transfer
 
 ## Dataset
 | Dataset         | Piano                  | Guitar                |
