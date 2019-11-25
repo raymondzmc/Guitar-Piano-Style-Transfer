@@ -1,7 +1,13 @@
 import torch
-import random
+import torch.nn as nn
 from torch.nn import init
 import matplotlib.pyplot as plt
+import numpy as np
+import config as cfg
+import librosa
+import random
+import argparse
+import pdb
 
 
 def init_weights(net, init_type='normal', init_gain=0.02):
@@ -97,7 +103,7 @@ def save_heatmap(data, path):
     """
     Save spectrogram as heatmap
     """
-    data = x_mel
+    # data = x_mel
     cmap = plt.cm.jet
     norm = plt.Normalize(vmin=data.min(), vmax=data.max())
 
@@ -105,3 +111,58 @@ def save_heatmap(data, path):
     # image is now RGBA (512x512x4) 
     image = cmap(norm(data))
     plt.imsave(path, image)
+
+
+def reconstruct2(spectrogram, phase):
+    if isinstance(spectrogram, torch.Tensor):
+        spectrogram = spectrogram.cpu().numpy()
+
+    spectrogram = spectrogram.squeeze((0, 1))
+    spectrogram = spectrogram*(45-(-15))-15
+    spectrogram = 10**(spectrogram / 10)
+    s_db_inv = librosa.feature.inverse.mel_to_stft(spectrogram, sr=cfg.sampling_rate, n_fft=cfg.n_fft)
+    # s_power_inv = librosa.core.db_to_amplitude(s_db_inv, ref=1.0)
+    # reconstruct without phase information
+    stft = s_db_inv * phase
+    data = librosa.core.istft(stft, hop_length=cfg.hop_length)
+    # # s_istft = librosa.istft(s_power_inv)
+    # # reconstruct with random phase using Griffin-Lim algorithm
+    # s_istft = librosa.griffinlim(s_power_inv)
+    return data
+
+
+def reconstruct(spectrogram, phase):
+    """
+    Reconstruct the wavefrom from Mel-spectrogram
+    """
+
+    if isinstance(spectrogram, torch.Tensor):
+        spectrogram = spectrogram.cpu().numpy()
+
+    spectrogram = spectrogram.squeeze((0, 1))
+
+    # Convert Mel-spectrogram to power series
+    stft = librosa.feature.inverse.mel_to_stft(spectrogram,
+                                               sr=cfg.sampling_rate,
+                                               n_fft=cfg.n_fft)
+
+    # Scale stft to log-amplitude between -15 and 65 dB
+    stft = np.interp(stft, (stft.min(), stft.max()), (cfg.db_min, cfg.db_max))
+
+    # Convert decibel to amplitude
+    stft = librosa.core.db_to_amplitude(stft)
+    
+    # Re-construct using input phase
+    stft = stft * phase
+
+    data = librosa.core.istft(stft, hop_length=cfg.hop_length)
+
+    return data
+
+
+
+def parse_arg():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--load_ckpt", type=int, default=0, help="Load pre-trained parameters by number of epochs trained")
+    args = parser.parse_args()
+    return args

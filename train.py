@@ -5,14 +5,18 @@ import time
 
 from dataloader import AudioDataset, get_dataloader
 from loss import CycleGANModel
+from utils import parse_arg
 import config as cfg
 import pdb
 
 
 if __name__ == "__main__":
-    cuda = torch.cuda.is_available()
 
-    if cuda:
+    args = parse_arg()
+
+    load_ckpt = args.load_ckpt
+    
+    if torch.cuda.is_available():
         device = torch.device(torch.cuda.current_device())
     else:
         device = torch.device('cpu')
@@ -23,8 +27,15 @@ if __name__ == "__main__":
     if not os.path.exists(ckpt_path):
         os.mkdir(ckpt_path)
 
+
     # Initialize model
     model = CycleGANModel().to(device)
+
+    # Load previous checkpoint
+    if load_ckpt > 0:
+        ckpt_file = os.path.join(cfg.ckpt, "{}.pth".format(load_ckpt))
+        model.load_state_dict(torch.load(ckpt_file))
+        print("Loaded checkpoint at epoch {}".format(load_ckpt))
 
     # Initialize dataloader
     dataset = AudioDataset(cfg.data_path)
@@ -36,15 +47,14 @@ if __name__ == "__main__":
 
 
     # Training loop
-    for epoch in range(1, cfg.epoch + 1):
+    for epoch in range(load_ckpt + 1, cfg.epoch + 1):
         start_time = time.time()
 
         # Keep track of batch loss for discriminator and generator
-        loss_D, loss_G = 0., 0.
+        loss_Fy, loss_Gx, loss_cyc_x, loss_cyc_y, loss_idt_x, loss_idt_y, loss_Dx, loss_Dy = 8 * [0.]
 
         for i, (x, y) in enumerate(dataloader):
-
-            if i + 1 % 100 == 0:
+            if (i + 1) % 100 == 0:
                 print("Minibatch {} of {}".format(i + 1, n))
 
             x, y = x.to(device), y.to(device)
@@ -54,8 +64,14 @@ if __name__ == "__main__":
             except:
                 pdb.set_trace()
 
-            loss_D += model.loss_D.item()
-            loss_G += model.loss_G.item()
+            loss_Fy += model.loss_Fy.item()
+            loss_Gx += model.loss_Gx.item()
+            loss_cyc_x += model.loss_cyc_x.item()
+            loss_cyc_y += model.loss_cyc_y.item()
+            loss_idt_x += model.loss_idt_x.item()
+            loss_idt_y += model.loss_idt_y.item()
+            loss_Dx += model.loss_Dx.item()
+            loss_Dy += model.loss_Dy.item()
 
         # Print epoch training time
         epoch_time = time.time() - start_time   
@@ -70,8 +86,11 @@ if __name__ == "__main__":
         model.update_learning_rate()
 
         # Write average mini-batch loss
-        writer.add_scalar('Loss/loss_D', loss_D / n, epoch)
-        writer.add_scalar('Loss/loss_G', loss_G / n, epoch)
-
-
-
+        writer.add_scalar('Loss/y_to_x_loss', loss_Fy / n, epoch)
+        writer.add_scalar('Loss/x_to_y_loss', loss_Gx / n, epoch)
+        writer.add_scalar('Loss/x_cycle_loss', loss_cyc_x / n, epoch)
+        writer.add_scalar('Loss/y_cycle_loss', loss_cyc_y / n, epoch)
+        writer.add_scalar('Loss/x_identity_loss', loss_idt_x / n, epoch)
+        writer.add_scalar('Loss/y_identity_loss', loss_idt_y / n, epoch)
+        writer.add_scalar('Loss/x_discriminator_loss', loss_Dx / n, epoch)
+        writer.add_scalar('Loss/y_discriminator_loss', loss_Dy / n, epoch)

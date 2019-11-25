@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.optim import lr_scheduler
+from torch.autograd import grad
 import itertools
 from model import * 
 from utils import *
@@ -74,7 +75,7 @@ class CycleGANModel(nn.Module):
     CycleGAN paper: https://arxiv.org/pdf/1703.10593.pdf
     """
 
-    def __init__(self, verbose=False, last_epoch=0):
+    def __init__(self, lr_lambda=None, verbose=False, last_epoch=0):
         """Initialize the CycleGAN class."""
 
         super(CycleGANModel, self).__init__()
@@ -116,14 +117,16 @@ class CycleGANModel(nn.Module):
         self.lambda_cyc = cfg.lambda_cyc
         self.lambda_idt = cfg.lambda_idt
 
+        self.schedulers = []
+
         # LR scheduler
         def lr_lambda(epoch):
-            lr_l = 1.0 - (max(0, epoch + last_epoch - 100) / float(101))
+            lr_l = 1.0 - (max(0, epoch + last_epoch - 1000) / float(cfg.epoch))
             return lr_l
 
-        self.schedulers = []
-        for optim in self.optimizers:
-            self.schedulers.append(lr_scheduler.LambdaLR(optim, lr_lambda))
+        if lr_lambda != None:
+            for optim in self.optimizers:
+                self.schedulers.append(lr_scheduler.LambdaLR(optim, lr_lambda))
 
         print("Initial learning rate: {:.6f}".format(self.optimizers[0].param_groups[0]['lr']))
 
@@ -156,26 +159,23 @@ class CycleGANModel(nn.Module):
 
         # Identity Loss: ||Fy(x) - x|| and ||Gx(y) - y||
         idt_x = self.Fy(self.real_x)
-        loss_idt_x = self.criterionIdt(idt_x, self.real_x) * self.lambda_cyc * self.lambda_idt
+        self.loss_idt_x = self.criterionIdt(idt_x, self.real_x) * self.lambda_cyc * self.lambda_idt
         idt_y = self.Gx(self.real_y)
-        loss_idt_y = self.criterionIdt(idt_y, self.real_y) * self.lambda_cyc * self.lambda_idt
-        
-        
+        self.loss_idt_y = self.criterionIdt(idt_y, self.real_y) * self.lambda_cyc * self.lambda_idt
+
         # GAN Loss: Dx(Fy(y)) and Dy(Gx(x))
-        loss_Fy = self.criterionGAN(self.Dx(self.fake_x), True)
-        loss_Gx = self.criterionGAN(self.Dy(self.fake_y), True)
-        
+        self.loss_Fy = self.criterionGAN(self.Dx(self.fake_x), True)
+        self.loss_Gx = self.criterionGAN(self.Dy(self.fake_y), True)
 
         # Cycle-Consistency Loss: ||Gx(Dy(y)) - y|| and ||Fy(Gx(x)) - x|| 
-        loss_cyc_x = self.criterionCycle(self.rec_x, self.real_x) * self.lambda_cyc
-        loss_cyc_y = self.criterionCycle(self.rec_y, self.real_y) * self.lambda_cyc
-        
+        self.loss_cyc_x = self.criterionCycle(self.rec_x, self.real_x) * self.lambda_cyc
+        self.loss_cyc_y = self.criterionCycle(self.rec_y, self.real_y) * self.lambda_cyc
 
         # Compute gradients and update weights for the generator
-        self.loss_G = loss_idt_x + loss_idt_y + loss_Fy + loss_Gx + loss_cyc_x + loss_cyc_y
+        self.loss_G = self.loss_idt_x + self.loss_idt_y + self.loss_Fy + self.loss_Gx + self.loss_cyc_x + self.loss_cyc_y
         self.loss_G.backward()
         self.optimizer_G.step()
-        
+
         ######################################################################################################
 
         # Optimize for the Discriminators
@@ -184,18 +184,26 @@ class CycleGANModel(nn.Module):
 
         # Loss for Dx
         fake_x = self.fake_x_pool.query(self.fake_x)
-        loss_Dx_real = self.criterionGAN(self.Dx(self.real_x), True)
-        loss_Dx_fake = self.criterionGAN(self.Dx(fake_x.detach()), False)
-        loss_Dx = (loss_Dx_real + loss_Dx_fake) * 0.5
+        self.loss_Dx_real = self.criterionGAN(self.Dx(self.real_x), True)
+        self.loss_Dx_fake = self.criterionGAN(self.Dx(fake_x.detach()), False)
+
+        # Gradient Penalty for Dx
+        self.gp_dx, gradients = self.gradient_penalty(self.Dx, self.real_x, fake_x, 'cuda')
+        self.loss_Dx = (self.loss_Dx_real + self.loss_Dx_fake + self.gp_dx) * 0.5
+
 
         # Loss for Dy
         fake_y = self.fake_y_pool.query(self.fake_y)
-        loss_Dy_real = self.criterionGAN(self.Dx(self.real_y), True)
-        loss_Dy_fake = self.criterionGAN(self.Dx(fake_y.detach()), False)
-        loss_Dy = (loss_Dy_real + loss_Dy_fake) * 0.5
+        self.loss_Dy_real = self.criterionGAN(self.Dy(self.real_y), True)
+        self.loss_Dy_fake = self.criterionGAN(self.Dy(fake_y.detach()), False)
+
+        # Gradient Penalty for Dy
+        self.gp_dy, gradients = self.gradient_penalty(self.Dy, self.real_y, fake_y, 'cuda')
+        self.loss_Dy = (self.loss_Dy_real + self.loss_Dy_fake + self.gp_dx) * 0.5
+
 
         # Compute gradients and update weights for the discriminator
-        self.loss_D = loss_Dx + loss_Dy
+        self.loss_D = self.loss_Dx + self.loss_Dy
         self.loss_D.backward()
         self.optimizer_D.step()
 
@@ -205,6 +213,19 @@ class CycleGANModel(nn.Module):
             print("Cycle-consistent loss for x: {:.3f}, y: {:.3f}".format(loss_cyc_x.item(), loss_cyc_y.item()))
             print("Discriminator loss for x: {:.3f}, y: {:.3f}".format(loss_Dx.item(), loss_Dy.item()))
 
+
+    def gradient_penalty(self, net, real_data, fake_data, device, type='mixed', constant=1.0, lambda_gp=10.0):
+        alpha = torch.rand(real_data.shape[0], 1, device=device)
+        alpha = alpha.expand(real_data.shape[0], real_data.nelement() // real_data.shape[0]).contiguous().view(*real_data.shape)
+        interpolatesv = alpha * real_data + ((1 - alpha) * fake_data)
+        interpolatesv.requires_grad_()
+        disc_interpolates = net(interpolatesv)
+        gradients = torch.autograd.grad(outputs=disc_interpolates, inputs=interpolatesv,
+                                        grad_outputs=torch.ones(disc_interpolates.size()).to(device),
+                                        create_graph=True, retain_graph=True, only_inputs=True)
+        gradients = gradients[0].view(real_data.size(0), -1)
+        gradient_penalty = (((gradients + 1e-16).norm(2, dim=1) - constant) ** 2).mean() * lambda_gp
+        return gradient_penalty, gradients
 
     def update_learning_rate(self):
         """Update learning rates for all the networks; called at the end of every epoch"""
