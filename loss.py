@@ -92,10 +92,11 @@ class CycleGANModel(nn.Module):
         self.Dx = NLayerDiscriminator(cfg.input_nc)
 
         # Initialize weights
-        init_weights(self.Fy)
-        init_weights(self.Gx)
-        init_weights(self.Dy)
-        init_weights(self.Dx)
+        if last_epoch == 0:
+            init_weights(self.Fy)
+            init_weights(self.Gx)
+            init_weights(self.Dy)
+            init_weights(self.Dx)
 
         # Define image pools
         self.fake_x_pool = ImagePool()  # create image buffer to store previously generated images
@@ -120,8 +121,9 @@ class CycleGANModel(nn.Module):
         self.schedulers = []
 
         # LR scheduler
+        self.last_epoch = last_epoch
         def lr_lambda(epoch):
-            lr_l = 1.0 - (max(0, epoch + last_epoch - 1000) / float(cfg.epoch))
+            lr_l = 1.0 - (max(0, epoch + self.last_epoch - 2400) / float(cfg.epoch - 2400))
             return lr_l
 
         if lr_lambda != None:
@@ -199,7 +201,7 @@ class CycleGANModel(nn.Module):
 
         # Gradient Penalty for Dy
         self.gp_dy, gradients = self.gradient_penalty(self.Dy, self.real_y, fake_y, 'cuda')
-        self.loss_Dy = (self.loss_Dy_real + self.loss_Dy_fake + self.gp_dx) * 0.5
+        self.loss_Dy = (self.loss_Dy_real + self.loss_Dy_fake + self.gp_dy) * 0.5
 
 
         # Compute gradients and update weights for the discriminator
@@ -233,7 +235,7 @@ class CycleGANModel(nn.Module):
             scheduler.step()
 
         lr = self.optimizers[0].param_groups[0]['lr']
-        print('learning rate = {:.6f}'.format(lr))
+        print('learning rate = {:.7f}'.format(lr))
 
 # if __name__ == "__main__":
 #     cyclegan = CycleGANModel().cuda()

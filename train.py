@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
 
     # Initialize model
-    model = CycleGANModel().to(device)
+    model = CycleGANModel(last_epoch=load_ckpt).to(device)
 
     # Load previous checkpoint
     if load_ckpt > 0:

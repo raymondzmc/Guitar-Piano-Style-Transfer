@@ -113,22 +113,27 @@ def save_heatmap(data, path):
     plt.imsave(path, image)
 
 
-def reconstruct2(spectrogram, phase):
+def reconstruct2(spectrogram, phase, spec_range):
     if isinstance(spectrogram, torch.Tensor):
         spectrogram = spectrogram.cpu().numpy()
 
+    spec_min, spec_max = spec_range
+
     spectrogram = spectrogram.squeeze((0, 1))
-    spectrogram = spectrogram*(45-(-15))-15
-    spectrogram = 10**(spectrogram / 10)
+    spectrogram = (spec_max - spec_min) * ((spectrogram + 1) / 2) + spec_min
+
+    spectrogram = 10**(spectrogram)
     s_db_inv = librosa.feature.inverse.mel_to_stft(spectrogram, sr=cfg.sampling_rate, n_fft=cfg.n_fft)
     # s_power_inv = librosa.core.db_to_amplitude(s_db_inv, ref=1.0)
     # reconstruct without phase information
-    stft = s_db_inv * phase
-    data = librosa.core.istft(stft, hop_length=cfg.hop_length)
+    stft = s_db_inv[:, :phase.shape[1]] * phase
+
+    data1 = librosa.core.istft(stft, hop_length=cfg.hop_length)
+    # data2 = librosa.griffinlim(s_db_inv, hop_length=cfg.hop_length)
     # # s_istft = librosa.istft(s_power_inv)
     # # reconstruct with random phase using Griffin-Lim algorithm
     # s_istft = librosa.griffinlim(s_power_inv)
-    return data
+    return data1, data1
 
 
 def reconstruct(spectrogram, phase):

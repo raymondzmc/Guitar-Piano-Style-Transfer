@@ -45,8 +45,12 @@ class AudioDataset(Dataset):
         x, sr = librosa.core.load(x_path, sr=cfg.sampling_rate)
         y, sr = librosa.core.load(y_path, sr=cfg.sampling_rate)
 
+        if not self.eval:
+            x = x * np.random.uniform(low=0.5, high=1.0)
+            y = y * np.random.uniform(low=0.5, high=1.0)
+
         # Randomly sample the audio for training
-        sample_size = cfg.n_mels * cfg.hop_length - 1
+        sample_size = (cfg.sampling_rate * 10) if self.eval else cfg.n_mels * cfg.hop_length - 1
         x_idx = random.randint(0, len(x) - sample_size - 1)
         y_idx = random.randint(0, len(y) - sample_size - 1)
         x = x[x_idx:x_idx + sample_size]
@@ -82,14 +86,18 @@ class AudioDataset(Dataset):
                                                n_fft=cfg.n_fft,
                                                hop_length=cfg.hop_length,
                                                n_mels=cfg.n_mels)
-        y_mel = librosa.feature.melspectrogram(S=np.abs(y_mag),
+        y_mel = librosa.feature.melspectrogram(S=y_mag,
                                                sr=sr,
                                                n_fft=cfg.n_fft,
                                                hop_length=cfg.hop_length,
                                                n_mels=cfg.n_mels)
-        x_mel = 10 * np.log10(np.clip(x_mel, a_min=1e-15, a_max=None))
-        y_mel = 10 * np.log10(np.clip(y_mel, a_min=1e-15, a_max=None))
 
+        # print(x_mel.min(), y_mel.min())
+        x_mel = np.log10(np.clip(x_mel, a_min=1e-15, a_max=None))
+        y_mel = np.log10(np.clip(y_mel, a_min=1e-15, a_max=None))
+
+        # print(x_mel.min())
+        # print(y_mel.min())
         # pdb.set_trace()
         # Transformed to a Mel-frequency spectrogram
         # x_mel = librosa.feature.melspectrogram(x,
@@ -105,14 +113,19 @@ class AudioDataset(Dataset):
 
 
         # Normalize Mel-spectrogram
-        x_mel = (x_mel - cfg.db_min) / (cfg.db_max - cfg.db_min)
-        y_mel = (y_mel - cfg.db_min) / (cfg.db_max - cfg.db_min)
+        x_min, x_max, y_min, y_max = x_mel.min(), x_mel.max(), y_mel.min(), y_mel.max()
+
+        if not (x_max == x_min):
+            x_mel = 2 * ((x_mel - x_min) / (x_max - x_min)) - 1
+
+        if not (y_max == y_min):
+            y_mel = 2 * ((y_mel - y_min) / (y_max - y_min)) - 1
 
         # Return phase information and filename during evaluation
         if self.eval:
             x_name = os.path.basename(x_path).split('.')[0]
             y_name = os.path.basename(y_path).split('.')[0]
-            return Variable(self.transform(x_mel)), Variable(self.transform(y_mel)), x_phase, y_phase, x_name, y_name
+            return x, y, Variable(self.transform(x_mel)), Variable(self.transform(y_mel)), x_phase, y_phase, x_name, y_name, (x_min, x_max, y_min, y_max)
         else:
             return Variable(self.transform(x_mel)), Variable(self.transform(y_mel))
 

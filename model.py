@@ -127,7 +127,8 @@ class ResnetGenerator(nn.Module):
 
     def forward(self, input):
         """Standard forward"""
-        return self.model(input)
+        out = self.model(input)
+        return out
 
 
 class NLayerDiscriminator(nn.Module):
