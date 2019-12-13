@@ -54,6 +54,8 @@ if __name__ == "__main__":
         loss_Fy, loss_Gx, loss_cyc_x, loss_cyc_y, loss_idt_x, loss_idt_y, loss_Dx, loss_Dy = 8 * [0.]
 
         for i, (x, y) in enumerate(dataloader):
+
+
             if (i + 1) % 100 == 0:
                 print("Minibatch {} of {}".format(i + 1, n))
 
@@ -72,6 +74,7 @@ if __name__ == "__main__":
             loss_idt_y += model.loss_idt_y.item()
             loss_Dx += model.loss_Dx.item()
             loss_Dy += model.loss_Dy.item()
+
 
         # Print epoch training time
         epoch_time = time.time() - start_time   

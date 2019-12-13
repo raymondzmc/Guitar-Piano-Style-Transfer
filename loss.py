@@ -123,7 +123,7 @@ class CycleGANModel(nn.Module):
         # LR scheduler
         self.last_epoch = last_epoch
         def lr_lambda(epoch):
-            lr_l = 1.0 - (max(0, epoch + self.last_epoch - 2400) / float(cfg.epoch - 2400))
+            lr_l = 1.0 - (max(0, epoch + self.last_epoch - 1000) / float(cfg.epoch - 1000))
             return lr_l
 
         if lr_lambda != None:

@@ -45,23 +45,34 @@ class AudioDataset(Dataset):
         x, sr = librosa.core.load(x_path, sr=cfg.sampling_rate)
         y, sr = librosa.core.load(y_path, sr=cfg.sampling_rate)
 
-        if not self.eval:
-            x = x * np.random.uniform(low=0.5, high=1.0)
-            y = y * np.random.uniform(low=0.5, high=1.0)
+        # if not self.eval:
+        #     x = x * np.random.uniform(low=0.5, high=1.0)
+        #     y = y * np.random.uniform(low=0.5, high=1.0)
 
         # Randomly sample the audio for training
         sample_size = (cfg.sampling_rate * 10) if self.eval else cfg.n_mels * cfg.hop_length - 1
+
         x_idx = random.randint(0, len(x) - sample_size - 1)
         y_idx = random.randint(0, len(y) - sample_size - 1)
-        x = x[x_idx:x_idx + sample_size]
-        y = y[y_idx:y_idx + sample_size]
 
-        if len(x) != len(y):
-            raise ValueError("Length mismatch for the two samples in the dataset!")
+        # pdb.set_trace()
+        x_sample = x[x_idx:x_idx + sample_size]
+        y_sample = y[y_idx:y_idx + sample_size]
+
+
+        # Re-sample if the clip is empty
+        while x_sample.min() == x_sample.max():
+            x_idx = random.randint(0, len(x) - sample_size - 1)
+            x_sample = x[x_idx:x_idx + sample_size]
+
+        while y_sample.min() == y_sample.max():
+            y_idx = random.randint(0, len(y) - sample_size - 1)
+            y_sample = y[y_idx:y_idx + sample_size]
+
 
         # Transform audio to time-frequency spectrogram
-        x_fft = librosa.core.stft(x, n_fft=cfg.n_fft, hop_length=cfg.hop_length)
-        y_fft = librosa.core.stft(y, n_fft=cfg.n_fft, hop_length=cfg.hop_length)
+        x_fft = librosa.core.stft(x_sample, n_fft=cfg.n_fft, hop_length=cfg.hop_length)
+        y_fft = librosa.core.stft(y_sample, n_fft=cfg.n_fft, hop_length=cfg.hop_length)
         x_mag, x_phase = librosa.magphase(x_fft)
         y_mag, y_phase = librosa.magphase(y_fft)
 
@@ -93,11 +104,12 @@ class AudioDataset(Dataset):
                                                n_mels=cfg.n_mels)
 
         # print(x_mel.min(), y_mel.min())
-        x_mel = np.log10(np.clip(x_mel, a_min=1e-15, a_max=None))
-        y_mel = np.log10(np.clip(y_mel, a_min=1e-15, a_max=None))
+        # x_mel = np.log10(np.clip(x_mel, a_min=1e-15, a_max=None))
+        # y_mel = np.log10(np.clip(y_mel, a_min=1e-15, a_max=None))
+        x_mel = log10_nonzero(x_mel).clip(cfg.x_min, cfg.x_max)
+        y_mel = log10_nonzero(y_mel).clip(cfg.y_min, cfg.y_max)
 
-        # print(x_mel.min())
-        # print(y_mel.min())
+        # print("x_min: {}, x_max: {}, y_min: {}, y_max: {}".format(x_mel.min(), x_mel.max(), y_mel.min(), y_mel.max()))
         # pdb.set_trace()
         # Transformed to a Mel-frequency spectrogram
         # x_mel = librosa.feature.melspectrogram(x,
@@ -113,22 +125,22 @@ class AudioDataset(Dataset):
 
 
         # Normalize Mel-spectrogram
-        x_min, x_max, y_min, y_max = x_mel.min(), x_mel.max(), y_mel.min(), y_mel.max()
 
-        if not (x_max == x_min):
-            x_mel = 2 * ((x_mel - x_min) / (x_max - x_min)) - 1
-
-        if not (y_max == y_min):
-            y_mel = 2 * ((y_mel - y_min) / (y_max - y_min)) - 1
+        x_mel = 2 * ((x_mel - cfg.x_min) / (cfg.x_max - cfg.x_min)) - 1
+        y_mel = 2 * ((y_mel - cfg.y_min) / (cfg.y_max - cfg.y_min)) - 1
 
         # Return phase information and filename during evaluation
         if self.eval:
             x_name = os.path.basename(x_path).split('.')[0]
             y_name = os.path.basename(y_path).split('.')[0]
-            return x, y, Variable(self.transform(x_mel)), Variable(self.transform(y_mel)), x_phase, y_phase, x_name, y_name, (x_min, x_max, y_min, y_max)
+            return x, y, Variable(self.transform(x_mel)), Variable(self.transform(y_mel)), x_phase, y_phase, x_name, y_name
         else:
             return Variable(self.transform(x_mel)), Variable(self.transform(y_mel))
 
+
+def log10_nonzero(x):
+    x[x != 0] = np.log10(x[x != 0])
+    return x
 
 def get_dataloader(dataset):
     dataloader = torch.utils.data.DataLoader(dataset,

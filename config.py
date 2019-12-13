@@ -9,8 +9,13 @@ sampling_rate = 16000
 n_fft = 1024
 hop_length = 256
 n_mels = 128
-db_min = -15 # Minimum threshold when converting spectrogram to decibel
-db_max = 65 # Maximum threshold when converting spectrogram to decibel
+
+x_min = -6.5
+x_max = 0.9
+y_min = -5.7
+y_max = 1.1
+
+db_max = 65
 
 # Dataloader
 batch_size = 1
@@ -24,4 +29,4 @@ lambda_idt = 0.0
 
 # Training
 init_lr = 0.0002
-epoch = 4800
+epoch = 2000
