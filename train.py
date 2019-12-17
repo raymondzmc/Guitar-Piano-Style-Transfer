@@ -48,7 +48,11 @@ if __name__ == "__main__":
 
     # Training loop
     for epoch in range(load_ckpt + 1, cfg.epoch + 1):
-        start_time = time.time()
+        start_time = time.time()    
+
+        if epoch > 200:
+            lambda_idt = max(0, (cfg.lambda_idt - (epoch - 200) / 800))
+            model.lambda_idt = lambda_idt
 
         # Keep track of batch loss for discriminator and generator
         loss_Fy, loss_Gx, loss_cyc_x, loss_cyc_y, loss_idt_x, loss_idt_y, loss_Dx, loss_Dy = 8 * [0.]

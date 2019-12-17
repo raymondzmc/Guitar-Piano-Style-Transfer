@@ -21,7 +21,7 @@ if __name__ == "__main__":
     cwd = os.getcwd()
     ckpt_path = os.path.join(cwd, cfg.ckpt)
 
-    to_evaluate = [620]
+    to_evaluate = [2000]
 
     models = []
 
@@ -55,23 +55,23 @@ if __name__ == "__main__":
 
             fake_x, fake_y = model.fake_x, model.fake_y
             print(j)
-            # re_fake_x1, re_fake_x2 = reconstruct2(fake_x, x_phase, (cfg.x_min, cfg.x_max))
-            # re_fake_y1, re_fake_y2 = reconstruct2(fake_y, y_phase, (cfg.y_min, cfg.y_max))
-            # re_x1, re_x2 = reconstruct2(x, x_phase, (cfg.x_min, cfg.x_max))
-            # re_y1, re_y2 = reconstruct2(y, y_phase, (cfg.y_min, cfg.y_max))
+            re_fake_x1, re_fake_x2 = reconstruct2(fake_x, x_phase, (cfg.x_min, cfg.x_max))
+            re_fake_y1, re_fake_y2 = reconstruct2(fake_y, y_phase, (cfg.y_min, cfg.y_max))
+            re_x1, re_x2 = reconstruct2(x, x_phase, (cfg.x_min, cfg.x_max))
+            re_y1, re_y2 = reconstruct2(y, y_phase, (cfg.y_min, cfg.y_max))
 
             save_heatmap(x.squeeze().cpu().numpy(), 'heatmap/{}/{}_x.png'.format(to_evaluate[j], x_name))
             save_heatmap(y.squeeze().cpu().numpy(), 'heatmap/{}/{}_y.png'.format(to_evaluate[j], y_name))
             save_heatmap(fake_x.squeeze().cpu().numpy(), 'heatmap/{}/{}_fake_x.png'.format(to_evaluate[j], y_name))
             save_heatmap(fake_y.squeeze().cpu().numpy(), 'heatmap/{}/{}_fake_y.png'.format(to_evaluate[j], x_name))
 
-            # librosa.output.write_wav('samples/{}/{}_x.wav'.format(to_evaluate[j], x_name), xx, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_y.wav'.format(to_evaluate[j], y_name), yy, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_fake_x_stft.wav'.format(to_evaluate[j], y_name), re_fake_x1, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_fake_y_stft.wav'.format(to_evaluate[j], x_name), re_fake_y1, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_x.wav'.format(to_evaluate[j], x_name), xx, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_y.wav'.format(to_evaluate[j], y_name), yy, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_fake_x_stft.wav'.format(to_evaluate[j], y_name), re_fake_x1, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_fake_y_stft.wav'.format(to_evaluate[j], x_name), re_fake_y1, cfg.sampling_rate)
 
-            # librosa.output.write_wav('samples/{}/{}_x_gl.wav'.format(to_evaluate[j], x_name), re_x2, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_y_gl.wav'.format(to_evaluate[j], y_name), re_y2, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_fake_x_gl.wav'.format(to_evaluate[j], y_name), re_fake_x2, cfg.sampling_rate)
-            # librosa.output.write_wav('samples/{}/{}_fake_y_gl.wav'.format(to_evaluate[j], x_name), re_fake_y2, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_x_gl.wav'.format(to_evaluate[j], x_name), re_x2, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_y_gl.wav'.format(to_evaluate[j], y_name), re_y2, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_fake_x_gl.wav'.format(to_evaluate[j], y_name), re_fake_x2, cfg.sampling_rate)
+            librosa.output.write_wav('samples/{}/{}_fake_y_gl.wav'.format(to_evaluate[j], x_name), re_fake_y2, cfg.sampling_rate)
     pdb.set_trace()

@@ -25,7 +25,7 @@ n_workers = 0
 input_nc, output_nc = 1, 1
 n_blocks = 9
 lambda_cyc = 10.0
-lambda_idt = 0.0
+lambda_idt = 0.5
 
 # Training
 init_lr = 0.0002
